@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House price estimator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14213d;--paper:#eef2f5;--panel:#fff;--line:#c9d3dc;--muted:#5b6b7c;--accent:#0e6b5c;--accent-soft:#d6ebe6;--err:#b3261e;
+--display:"Bricolage Grotesque","Trebuchet MS",sans-serif;--body:"Instrument Sans",system-ui,sans-serif}
+@media(prefers-color-scheme:dark){:root{--ink:#e8eef5;--paper:#0f1722;--panel:#17212f;--line:#2b3a4d;--muted:#93a4b8;--accent:#4fd1b5;--accent-soft:#143a34;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--body)}
+main{max-width:1040px;margin:0 auto;padding:40px 20px 56px}
+h1{font:700 clamp(28px,4vw,40px)/1.1 var(--display);margin:0 0 6px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 32px;max-width:52ch}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:20px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px}
+.field{margin-bottom:22px}.field:last-of-type{margin-bottom:0}
+.row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+label{font-weight:600}
+output{font:700 18px var(--display);color:var(--accent)}
+.hint{font-size:13px;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps button{min-width:44px;height:40px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;font:500 15px var(--body);cursor:pointer}
+.steps button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.result{display:flex;flex-direction:column}
+.stage{border-bottom:1px solid var(--line);margin:-24px -24px 20px;padding:20px 24px 0;background:var(--accent-soft);border-radius:14px 14px 0 0}
+svg{display:block;width:100%;height:auto}
+.price{font:700 clamp(40px,6vw,60px)/1 var(--display);letter-spacing:-.03em;margin:4px 0 6px}
+.price.stale{opacity:.45}
+.meta{color:var(--muted);font-size:14px}
+.err{color:var(--err);font-weight:500;margin-top:12px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:18px 0 0;font-size:14px;color:var(--muted)}
+dd{margin:0;text-align:right;color:var(--ink)}
+a{color:var(--accent)}
+@media(prefers-reduced-motion:no-preference){.price{transition:opacity .2s}#roof,#body{transition:all .25s ease}}
+</style>
+</head>
+<body>
+<main>
+  <h1>What is this house worth?</h1>
+  <p class="sub">Describe the property and a scikit-learn model, served by FastAPI, returns an estimate as you adjust.</p>
+
+  <div class="grid">
+    <section class="panel" aria-label="Property details">
+      <div class="field"><div class="row"><label for="area_sqft">Living area</label><output id="o_area_sqft"></output></div>
+        <input type="range" id="area_sqft" min="400" max="6000" step="50" value="1800"></div>
+      <div class="field"><div class="row"><label>Bedrooms</label></div><div class="steps" data-key="bedrooms" data-values="1,2,3,4,5,6" data-default="3"></div></div>
+      <div class="field"><div class="row"><label>Bathrooms</label></div><div class="steps" data-key="bathrooms" data-values="1,2,3,4,5" data-default="2"></div></div>
+      <div class="field"><div class="row"><label>Garage spaces</label></div><div class="steps" data-key="garage" data-values="0,1,2,3" data-default="1"></div></div>
+      <div class="field"><div class="row"><label for="age_years">Age of house</label><output id="o_age_years"></output></div>
+        <input type="range" id="age_years" min="0" max="80" step="1" value="10"></div>
+      <div class="field"><div class="row"><label for="location_score">Location quality</label><output id="o_location_score"></output></div>
+        <input type="range" id="location_score" min="1" max="10" step="1" value="7">
+        <div class="hint">1 is remote, 10 is a prime neighborhood.</div></div>
+    </section>
+
+    <section class="panel result" aria-live="polite" aria-label="Estimate">
+      <div class="stage">
+        <svg viewBox="0 0 400 190" role="img" aria-label="Sketch of the house, scaled to your inputs">
+          <line x1="0" y1="170" x2="400" y2="170" stroke="var(--line)" stroke-width="2"/>
+          <g id="house"></g>
+        </svg>
+      </div>
+      <div class="meta">Estimated price</div>
+      <div class="price" id="price">—</div>
+      <div class="meta" id="psf"></div>
+      <div class="err" id="err" role="alert" hidden></div>
+      <dl><dt>Model</dt><dd id="m_model">Gradient boosting</dd><dt>Test R²</dt><dd id="m_r2">…</dd><dt>Typical error</dt><dd id="m_mae">…</dd></dl>
+      <p class="hint" style="margin-top:16px">Trained on synthetic data. Try the <a href="/docs">API docs</a>.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+const state = {area_sqft:1800, bedrooms:3, bathrooms:2, age_years:10, location_score:7, garage:1};
+const fmt = new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0});
+const labels = {area_sqft:v=>`${(+v).toLocaleString()} sq ft`, age_years:v=>v==0?"New build":`${v} years`, location_score:v=>`${v} / 10`};
+const $ = id => document.getElementById(id);
+
+// sliders
+for (const key of Object.keys(labels)) {
+  const el = $(key), out = $("o_"+key);
+  const sync = () => { state[key] = +el.value; out.textContent = labels[key](el.value); };
+  el.addEventListener("input", () => { sync(); schedule(); });
+  sync();
+}
+// step buttons
+document.querySelectorAll(".steps").forEach(box => {
+  const key = box.dataset.key; state[key] = +box.dataset.default;
+  box.dataset.values.split(",").forEach(v => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = v;
+    b.setAttribute("aria-pressed", v == state[key]);
+    b.onclick = () => { state[key] = +v; box.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); schedule(); };
+    box.appendChild(b);
+  });
+});
+
+// house sketch reacts to inputs
+function drawHouse() {
+  const w = 120 + (state.area_sqft - 400) / 5600 * 200;          // width from area
+  const h = 60 + Math.min(state.bedrooms, 6) * 6;                  // taller with bedrooms
+  const x = 200 - w / 2 - (state.garage ? 18 : 0), y = 170 - h;
+  const col = "var(--ink)";
+  let s = `<rect id="body" x="${x}" y="${y}" width="${w}" height="${h}" fill="var(--panel)" stroke="${col}" stroke-width="2"/>`;
+  s += `<polygon id="roof" points="${x-8},${y} ${x+w/2},${y-38} ${x+w+8},${y}" fill="var(--accent)" stroke="${col}" stroke-width="2"/>`;
+  const n = Math.min(state.bedrooms, 6), cols = Math.min(n, 3);
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / 3), c = i % 3, gap = w / (cols + 1);
+    s += `<rect x="${x + gap*(c+1) - 8}" y="${y + 12 + r*26}" width="16" height="16" fill="var(--accent-soft)" stroke="${col}" stroke-width="1.5"/>`;
+  }
+  s += `<rect x="${x + w/2 - 9}" y="${170 - 30}" width="18" height="30" fill="${col}"/>`;
+  for (let g = 0; g < state.garage; g++) {
+    const gx = x + w + 4 + g * 0; 
+    s += g === 0 ? `<rect x="${gx}" y="${170-44}" width="${22 + state.garage*8}" height="44" fill="var(--panel)" stroke="${col}" stroke-width="2"/><line x1="${gx}" y1="${170-30}" x2="${gx+22+state.garage*8}" y2="${170-30}" stroke="${col}" stroke-width="1.5"/>` : "";
+  }
+  const trees = Math.max(0, Math.round(state.location_score / 3));
+  for (let t = 0; t < trees; t++) { const tx = 30 + t * 28; s += `<line x1="${tx}" y1="170" x2="${tx}" y2="150" stroke="${col}" stroke-width="2"/><circle cx="${tx}" cy="142" r="10" fill="var(--accent)" opacity=".7"/>`; }
+  $("house").innerHTML = s;
+}
+
+// debounced API call
+let timer, seq = 0;
+function schedule() { drawHouse(); clearTimeout(timer); timer = setTimeout(predict, 200); }
+async function predict() {
+  const mine = ++seq; $("price").classList.add("stale");
+  try {
+    const res = await fetch("/predict", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(state)});
+    if (!res.ok) throw new Error(res.status === 422 ? "Some values are outside the supported range." : `The server returned ${res.status}.`);
+    const data = await res.json(); if (mine !== seq) return;
+    $("price").textContent = fmt.format(data.predicted_price);
+    $("psf").textContent = `${fmt.format(data.predicted_price / state.area_sqft)} per sq ft`;
+    $("err").hidden = true;
+  } catch (e) {
+    $("err").hidden = false;
+    $("err").textContent = e instanceof TypeError ? "Can't reach the API. Check that the server is running, then adjust a value to retry." : e.message;
+  } finally { if (mine === seq) $("price").classList.remove("stale"); }
+}
+fetch("/model-info").then(r => r.json()).then(m => {
+  $("m_r2").textContent = m.r2; $("m_mae").textContent = "± " + fmt.format(m.mae);
+}).catch(() => {});
+drawHouse(); predict();
+</script>
+</body>
+</html>

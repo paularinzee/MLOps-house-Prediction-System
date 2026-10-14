@@ -1,0 +1,20 @@
+{
+  "features": [
+    "area",
+    "bedrooms",
+    "bathrooms",
+    "stories",
+    "parking",
+    "mainroad",
+    "guestroom",
+    "basement",
+    "hotwaterheating",
+    "airconditioning",
+    "prefarea",
+    "furnishingstatus"
+  ],
+  "r2": 0.6477,
+  "mae": 983434.0,
+  "rows": 545,
+  "data_file": "Housing.csv"
+}
