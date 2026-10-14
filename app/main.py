@@ -28,13 +28,18 @@ app = FastAPI(title="House Price Prediction API", version="1.0.0", lifespan=life
 
 
 class House(BaseModel):
-    area_sqft: float = Field(..., ge=300, le=10000, examples=[1800])
-    bedrooms: int = Field(..., ge=1, le=10, examples=[3])
-    bathrooms: int = Field(..., ge=1, le=10, examples=[2])
-    age_years: float = Field(..., ge=0, le=150, examples=[10])
-    location_score: int = Field(..., ge=1, le=10, description="1 = remote, 10 = prime", examples=[7])
-    garage: int = Field(..., ge=0, le=5, examples=[1])
-
+    area: int = Field(..., ge=500, le=20000, examples=[7420])
+    bedrooms: int = Field(..., ge=1, le=10, examples=[4])
+    bathrooms: int = Field(..., ge=1, le=5, examples=[2])
+    stories: int = Field(..., ge=1, le=4, examples=[2])
+    parking: int = Field(..., ge=0, le=4, examples=[2])
+    mainroad: str = Field(..., examples=["yes"])
+    guestroom: str = Field(..., examples=["no"])
+    basement: str = Field(..., examples=["yes"])
+    hotwaterheating: str = Field(..., examples=["no"])
+    airconditioning: str = Field(..., examples=["yes"])
+    prefarea: str = Field(..., examples=["yes"])
+    furnishingstatus: str = Field(..., examples=["furnished"])
 
 class Prediction(BaseModel):
     predicted_price: float
