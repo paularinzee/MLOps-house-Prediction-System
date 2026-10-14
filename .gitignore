@@ -124,8 +124,8 @@ Thumbs.db
 
 # MLOps / Model Artifacts & Data
 # (Usually, large datasets and trained models shouldn't go to git; use DVC or object storage instead)
-data/
-*.csv
+#data/
+#*.csv
 *.parquet
 *.h5
 *.pkl
