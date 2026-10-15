@@ -5,12 +5,10 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent.parent
-STATIC = Path(__file__).parent / "static"
 state = {}
 
 
@@ -26,6 +24,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="House Price Prediction API", version="1.0.0", lifespan=lifespan)
 
+# Enable CORS for your React frontend
+app.add_middleware(
+    CORSMiddleware,
+    # allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class House(BaseModel):
     area: int = Field(..., ge=500, le=20000, examples=[7420])
@@ -40,6 +48,7 @@ class House(BaseModel):
     airconditioning: str = Field(..., examples=["yes"])
     prefarea: str = Field(..., examples=["yes"])
     furnishingstatus: str = Field(..., examples=["furnished"])
+
 
 class Prediction(BaseModel):
     predicted_price: float
@@ -61,11 +70,3 @@ def predict(house: House):
     row = pd.DataFrame([house.model_dump()])[state["meta"]["features"]]
     price = float(state["model"].predict(row)[0])
     return Prediction(predicted_price=round(price, 2))
-
-
-@app.get("/", include_in_schema=False)
-def ui():
-    return FileResponse(STATIC / "index.html")
-
-
-app.mount("/static", StaticFiles(directory=STATIC), name="static")
